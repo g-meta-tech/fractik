@@ -815,8 +815,45 @@ http.route({
                       capabilityId: { type: "string", description: "Capability ID" },
                       name: { type: "string", description: "Feature name" },
                       description: { type: "string", description: "Feature description" },
+                      acceptanceCriteria: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Acceptance criteria as list of strings",
+                      },
                     },
                     required: ["capabilityId", "name"],
+                  },
+                },
+                {
+                  name: "update_feature",
+                  description: "Update a feature's name, description, or acceptance criteria",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      featureId: { type: "string", description: "Feature ID" },
+                      name: { type: "string", description: "New feature name" },
+                      description: { type: "string", description: "New feature description" },
+                      acceptanceCriteria: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Acceptance criteria as list of strings (replaces existing)",
+                      },
+                    },
+                    required: ["featureId"],
+                  },
+                },
+                {
+                  name: "update_project",
+                  description: "Update a project's name, description, or GitHub repo URL",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      projectSlug: { type: "string", description: "Project slug" },
+                      name: { type: "string", description: "New project name" },
+                      description: { type: "string", description: "New project description" },
+                      githubRepoUrl: { type: "string", description: "GitHub repository URL" },
+                    },
+                    required: ["projectSlug"],
                   },
                 },
                 {
@@ -829,6 +866,11 @@ http.route({
                       persona: { type: "string", description: "User persona (e.g. 'product manager')" },
                       action: { type: "string", description: "What the user wants to do" },
                       benefit: { type: "string", description: "Why they want to do it" },
+                      acceptanceCriteria: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Acceptance criteria as list of strings",
+                      },
                     },
                     required: ["featureId", "persona", "action", "benefit"],
                   },
@@ -1131,12 +1173,19 @@ http.route({
 
             case "create_feature": {
               try {
+                const acStrings = toolArgs.acceptanceCriteria as string[] | undefined;
+                const acObjects = acStrings?.map((text: string, i: number) => ({
+                  id: `ac-${Date.now()}-${i}`,
+                  text,
+                  sortOrder: i,
+                }));
                 const featId = await ctx.runMutation(internal.features.createInternal, {
                   orgId: auth.orgId,
                   userId: auth.userId,
                   capabilityId: toolArgs.capabilityId as Id<"capabilities">,
                   name: toolArgs.name,
                   description: toolArgs.description,
+                  acceptanceCriteria: acObjects,
                 });
                 return mcpToolResult(id, `Feature created with ID: ${featId}`);
               } catch (e: unknown) {
@@ -1145,8 +1194,58 @@ http.route({
               }
             }
 
+            case "update_feature": {
+              try {
+                const acStrings = toolArgs.acceptanceCriteria as string[] | undefined;
+                const acObjects = acStrings?.map((text: string, i: number) => ({
+                  id: `ac-${Date.now()}-${i}`,
+                  text,
+                  sortOrder: i,
+                }));
+                await ctx.runMutation(internal.features.updateInternal, {
+                  orgId: auth.orgId,
+                  featureId: toolArgs.featureId as Id<"features">,
+                  name: toolArgs.name,
+                  description: toolArgs.description,
+                  acceptanceCriteria: acObjects,
+                });
+                return mcpToolResult(id, "Feature updated");
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "update_project": {
+              try {
+                const project = await ctx.runQuery(internal.projects.getBySlugInternal, {
+                  orgId: auth.orgId,
+                  slug: toolArgs.projectSlug,
+                });
+                if (!project) return mcpToolResult(id, "Project not found", true);
+
+                await ctx.runMutation(internal.projects.updateInternal, {
+                  orgId: auth.orgId,
+                  projectId: project._id,
+                  name: toolArgs.name,
+                  description: toolArgs.description,
+                  githubRepoUrl: toolArgs.githubRepoUrl,
+                });
+                return mcpToolResult(id, "Project updated");
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
             case "create_user_story": {
               try {
+                const acStrings = toolArgs.acceptanceCriteria as string[] | undefined;
+                const criteriaObjects = acStrings?.map((text: string, i: number) => ({
+                  id: `cr-${Date.now()}-${i}`,
+                  text,
+                  sortOrder: i,
+                }));
                 const storyId = await ctx.runMutation(internal.userStories.createInternal, {
                   orgId: auth.orgId,
                   userId: auth.userId,
@@ -1154,6 +1253,7 @@ http.route({
                   persona: toolArgs.persona,
                   action: toolArgs.action,
                   benefit: toolArgs.benefit,
+                  criteria: criteriaObjects,
                 });
                 return mcpToolResult(id, `User story created with ID: ${storyId}`);
               } catch (e: unknown) {

@@ -1,6 +1,8 @@
 "use client";
 
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { useSidebar } from "@/hooks/use-sidebar";
 import {
   Tooltip,
@@ -9,7 +11,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTheme } from "next-themes";
+import { usePathname } from "next/navigation";
 import {
+  FolderKanban,
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
@@ -28,6 +32,8 @@ import Link from "next/link";
 export function Sidebar() {
   const { collapsed, toggle } = useSidebar();
   const { setTheme } = useTheme();
+  const pathname = usePathname();
+  const projects = useQuery(api.projects.listByOrg);
 
   return (
     <aside
@@ -79,15 +85,42 @@ export function Sidebar() {
           {!collapsed && <span>Dashboard</span>}
         </Link>
 
-        {/* Placeholder: lista de proyectos irá aquí en Sprint Core */}
         {!collapsed && (
           <div className="mt-4 px-3">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Proyectos
             </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Sin proyectos aún
-            </p>
+            {projects === undefined ? (
+              <div className="mt-2 space-y-1">
+                <div className="h-7 w-full animate-pulse rounded-md bg-muted" />
+                <div className="h-7 w-3/4 animate-pulse rounded-md bg-muted" />
+              </div>
+            ) : projects.length === 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Sin proyectos aún
+              </p>
+            ) : (
+              <div className="mt-1 space-y-0.5">
+                {projects.map((p) => {
+                  const href = `/projects/${p.slug}`;
+                  const isActive = pathname === href || pathname.startsWith(`${href}/`);
+                  return (
+                    <Link
+                      key={p._id}
+                      href={href}
+                      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                        isActive
+                          ? "bg-accent text-accent-foreground font-medium"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      }`}
+                    >
+                      <FolderKanban className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{p.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </nav>

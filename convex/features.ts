@@ -8,6 +8,15 @@ export const create = mutation({
     capabilityId: v.id("capabilities"),
     name: v.string(),
     description: v.optional(v.string()),
+    acceptanceCriteria: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          text: v.string(),
+          sortOrder: v.number(),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const { userId, orgId } = await getAuthUser(ctx);
@@ -27,7 +36,7 @@ export const create = mutation({
       capabilityId: args.capabilityId,
       name: args.name,
       description: args.description ?? "",
-      acceptanceCriteria: [],
+      acceptanceCriteria: args.acceptanceCriteria ?? [],
       status: "draft",
       sortOrder: existing.length,
       createdBy: userId,
@@ -150,6 +159,15 @@ export const createInternal = internalMutation({
     capabilityId: v.id("capabilities"),
     name: v.string(),
     description: v.optional(v.string()),
+    acceptanceCriteria: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          text: v.string(),
+          sortOrder: v.number(),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const cap = await ctx.db.get(args.capabilityId);
@@ -168,12 +186,45 @@ export const createInternal = internalMutation({
       capabilityId: args.capabilityId,
       name: args.name,
       description: args.description ?? "",
-      acceptanceCriteria: [],
+      acceptanceCriteria: args.acceptanceCriteria ?? [],
       status: "draft",
       sortOrder: existing.length,
       createdBy: args.userId,
       createdAt: now,
       updatedAt: now,
+    });
+  },
+});
+
+export const updateInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    featureId: v.id("features"),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    acceptanceCriteria: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          text: v.string(),
+          sortOrder: v.number(),
+        }),
+      ),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const feature = await ctx.db.get(args.featureId);
+    if (!feature || feature.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    await ctx.db.patch(args.featureId, {
+      ...(args.name !== undefined && { name: args.name }),
+      ...(args.description !== undefined && { description: args.description }),
+      ...(args.acceptanceCriteria !== undefined && {
+        acceptanceCriteria: args.acceptanceCriteria,
+      }),
+      updatedAt: Date.now(),
     });
   },
 });

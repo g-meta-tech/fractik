@@ -63,6 +63,7 @@ export const update = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     slug: v.optional(v.string()),
+    githubRepoUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { orgId } = await getAuthUser(ctx);
@@ -92,6 +93,7 @@ export const update = mutation({
       ...(args.name !== undefined && { name: args.name }),
       ...(args.description !== undefined && { description: args.description }),
       ...(args.slug !== undefined && { slug: args.slug }),
+      ...(args.githubRepoUrl !== undefined && { githubRepoUrl: args.githubRepoUrl }),
       updatedAt: Date.now(),
     });
   },
@@ -494,6 +496,33 @@ export const createInternal = internalMutation({
       createdBy: args.userId,
       createdAt: now,
       updatedAt: now,
+    });
+  },
+});
+
+export const updateInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    projectId: v.id("projects"),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    githubRepoUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    if (args.name !== undefined && (args.name.length < 1 || args.name.length > 100)) {
+      throw new Error("Name must be between 1 and 100 characters");
+    }
+
+    await ctx.db.patch(args.projectId, {
+      ...(args.name !== undefined && { name: args.name }),
+      ...(args.description !== undefined && { description: args.description }),
+      ...(args.githubRepoUrl !== undefined && { githubRepoUrl: args.githubRepoUrl }),
+      updatedAt: Date.now(),
     });
   },
 });

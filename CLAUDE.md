@@ -75,3 +75,37 @@ docs/                           Documentación del producto (specs, etc.)
 - Cross-org: retornar "Not found", nunca "Unauthorized"
 - Correr `pnpm typecheck` antes de cada commit
 - Correr `pnpm lint` antes de cada commit
+
+## Fractik (source of truth del proyecto)
+
+Este proyecto se gestiona con Fractik. Los specs, features, test cases y
+el estado de implementación viven en Fractik, NO en archivos locales.
+
+### Antes de implementar cualquier feature o fix:
+1. Consulta Fractik via MCP para obtener el spec correspondiente
+2. Si el prompt menciona un spec ID (ej: "implementa FE-003"), usa
+   `get_spec` para obtener el detalle completo
+3. Si no sabes qué implementar, usa `query_project` para ver el árbol
+   de capabilities, features y specs
+
+### Después de implementar:
+1. Actualiza el status del spec en Fractik via `update_spec_status`
+2. Si encontraste un problema o el spec estaba incompleto, repórtalo
+
+### MCP tools disponibles:
+- `query_project` - ver el árbol completo del proyecto (capabilities, features, specs)
+- `get_spec` - obtener un spec con su contenido, test cases y contexto
+- `get_gaps` - ver qué features no tienen specs o tests
+- `update_spec_status` - reportar status (implemented, blocked, etc.)
+- `create_spec`, `create_feature`, `create_user_story` - crear entidades
+- `update_feature`, `update_spec` - actualizar entidades
+
+### Regla de contexto:
+NO acumular contexto entre tareas. Cada sesión debe:
+1. Obtener el spec de Fractik
+2. Implementar
+3. Verificar (typecheck, lint)
+4. Reportar resultado
+5. Si hay más trabajo, empezar sesión nueva
+
+Fractik es la fuente de verdad del proyecto, no /docs ni archivos .md locales.

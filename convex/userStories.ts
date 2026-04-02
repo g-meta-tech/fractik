@@ -97,6 +97,15 @@ export const createInternal = internalMutation({
     persona: v.string(),
     action: v.string(),
     benefit: v.string(),
+    criteria: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          text: v.string(),
+          sortOrder: v.number(),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const feature = await ctx.db.get(args.featureId);
@@ -120,7 +129,7 @@ export const createInternal = internalMutation({
       persona: args.persona,
       action: args.action,
       benefit: args.benefit,
-      criteria: [],
+      criteria: args.criteria ?? [],
       sortOrder: existing.length,
       createdBy: args.userId,
       createdAt: now,
