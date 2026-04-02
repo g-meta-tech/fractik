@@ -1375,10 +1375,21 @@ function mcpToolResult(id: unknown, text: string, isError = false) {
 }
 
 interface ProjectTreeTestCase {
+  _id: string;
   status: string;
+  title: string;
+  type: string;
+}
+
+interface ProjectTreeUserStory {
+  _id: string;
+  persona: string;
+  action: string;
+  benefit: string;
 }
 
 interface ProjectTreeSpec {
+  _id: string;
   type: string;
   title: string;
   status: string;
@@ -1386,14 +1397,16 @@ interface ProjectTreeSpec {
 }
 
 interface ProjectTreeFeature {
+  _id: string;
   name: string;
   status: string;
   description: string;
   specs: ProjectTreeSpec[];
-  userStories: unknown[];
+  userStories: ProjectTreeUserStory[];
 }
 
 interface ProjectTreeCapability {
+  _id: string;
   name: string;
   status: string;
   priority: string;
@@ -1402,6 +1415,7 @@ interface ProjectTreeCapability {
 }
 
 interface ProjectTree {
+  _id: string;
   name: string;
   description: string;
   capabilities: ProjectTreeCapability[];
@@ -1409,25 +1423,34 @@ interface ProjectTree {
 
 function formatProjectTree(tree: ProjectTree): string {
   const lines = [
-    `# ${tree.name}`,
+    `# ${tree.name} (id: ${tree._id})`,
     tree.description ? `${tree.description}` : "",
     "",
   ];
 
   for (const cap of tree.capabilities) {
-    lines.push(`## ${cap.name} [${cap.status}] (${cap.priority})`);
+    lines.push(`## ${cap.name} [${cap.status}] (${cap.priority}) (id: ${cap._id})`);
     if (cap.description) lines.push(`  ${cap.description}`);
 
     for (const feat of cap.features) {
-      lines.push(`  ### ${feat.name} [${feat.status}]`);
+      lines.push(`  ### ${feat.name} [${feat.status}] (id: ${feat._id})`);
       if (feat.description) lines.push(`    ${feat.description}`);
+
+      if (feat.userStories.length > 0) {
+        for (const story of feat.userStories) {
+          lines.push(`    - [Story] As a ${story.persona}, I want to ${story.action} so that ${story.benefit} (id: ${story._id})`);
+        }
+      }
 
       for (const spec of feat.specs) {
         const testInfo =
           spec.testCases.length > 0
             ? ` (${spec.testCases.length} tests)`
             : " (no tests)";
-        lines.push(`    - [${spec.type}] ${spec.title} [${spec.status}]${testInfo}`);
+        lines.push(`    - [${spec.type}] ${spec.title} [${spec.status}]${testInfo} (id: ${spec._id})`);
+        for (const tc of spec.testCases) {
+          lines.push(`      - [${tc.type}] ${tc.title} [${tc.status}] (id: ${tc._id})`);
+        }
       }
     }
     lines.push("");
