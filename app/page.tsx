@@ -10,7 +10,7 @@ export default function LandingPage() {
           Meta-development platform for AI-assisted software engineering
         </p>
       </div>
-      <Button render={<Link href="/sign-in" />} size="lg">
+      <Button render={<Link href="/sign-in" />} nativeButton={false} size="lg">
         Iniciar
       </Button>
     </div>
