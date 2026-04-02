@@ -306,6 +306,39 @@ export const listByProject = query({
   },
 });
 
+// ─── Internal mutations for HTTP Actions ────────────────
+
+export const createInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    featureId: v.id("features"),
+    type: v.union(v.literal("NF"), v.literal("BE"), v.literal("FE"), v.literal("DA")),
+    title: v.string(),
+    content: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const feature = await ctx.db.get(args.featureId);
+    if (!feature || feature.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    const now = Date.now();
+    return await ctx.db.insert("specs", {
+      orgId: args.orgId,
+      featureId: args.featureId,
+      type: args.type,
+      title: args.title,
+      content: args.content ?? "",
+      status: "draft",
+      versionNumber: 1,
+      createdBy: args.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
 // ─── Internal queries for HTTP Actions ───────────────────
 
 export const getInternal = internalQuery({
@@ -314,6 +347,40 @@ export const getInternal = internalQuery({
     const spec = await ctx.db.get(args.specId);
     if (!spec || spec.orgId !== args.orgId) return null;
     return spec;
+  },
+});
+
+export const updateContentInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    specId: v.id("specs"),
+    content: v.string(),
+    changeNote: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const spec = await ctx.db.get(args.specId);
+    if (!spec || spec.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    const now = Date.now();
+
+    await ctx.db.insert("specVersions", {
+      orgId: args.orgId,
+      specId: args.specId,
+      content: spec.content,
+      versionNumber: spec.versionNumber,
+      changeNote: args.changeNote ?? "",
+      changedBy: args.userId,
+      changedAt: now,
+    });
+
+    await ctx.db.patch(args.specId, {
+      content: args.content,
+      versionNumber: spec.versionNumber + 1,
+      updatedAt: now,
+    });
   },
 });
 

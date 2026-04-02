@@ -161,6 +161,42 @@ export const listBySpec = query({
 
 // ─── Internal for HTTP Actions ───────────────────────────
 
+export const createInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    specId: v.id("specs"),
+    type: v.union(
+      v.literal("unit"),
+      v.literal("integration"),
+      v.literal("e2e"),
+      v.literal("manual"),
+    ),
+    title: v.string(),
+    preconditions: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const spec = await ctx.db.get(args.specId);
+    if (!spec || spec.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    const now = Date.now();
+    return await ctx.db.insert("testCases", {
+      orgId: args.orgId,
+      specId: args.specId,
+      type: args.type,
+      title: args.title,
+      preconditions: args.preconditions ?? "",
+      steps: [],
+      status: "defined",
+      createdBy: args.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
 export const listBySpecInternal = internalQuery({
   args: { orgId: v.string(), specId: v.id("specs") },
   handler: async (ctx, args) => {

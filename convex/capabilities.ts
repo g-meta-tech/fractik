@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { getAuthUser } from "./lib/auth";
 import { cascadeDeleteFeature } from "./projects";
 
@@ -136,6 +136,43 @@ export const reorder = mutation({
       }
       await ctx.db.patch(capId, { sortOrder: i });
     }
+  },
+});
+
+// ─── Internal mutations for HTTP Actions ────────────────
+
+export const createInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    projectId: v.id("projects"),
+    name: v.string(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    const existing = await ctx.db
+      .query("capabilities")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
+
+    const now = Date.now();
+    return await ctx.db.insert("capabilities", {
+      orgId: args.orgId,
+      projectId: args.projectId,
+      name: args.name,
+      description: args.description ?? "",
+      priority: "medium",
+      status: "draft",
+      sortOrder: existing.length,
+      createdBy: args.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
   },
 });
 

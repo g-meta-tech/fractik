@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { getAuthUser } from "./lib/auth";
 
 export const create = mutation({
@@ -84,6 +84,48 @@ export const remove = mutation({
       throw new Error("Not found");
     }
     await ctx.db.delete(args.storyId);
+  },
+});
+
+// ─── Internal mutations for HTTP Actions ────────────────
+
+export const createInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    featureId: v.id("features"),
+    persona: v.string(),
+    action: v.string(),
+    benefit: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const feature = await ctx.db.get(args.featureId);
+    if (!feature || feature.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    if (!args.persona.trim() || !args.action.trim() || !args.benefit.trim()) {
+      throw new Error("Persona, action, and benefit must not be empty");
+    }
+
+    const existing = await ctx.db
+      .query("userStories")
+      .withIndex("by_feature", (q) => q.eq("featureId", args.featureId))
+      .collect();
+
+    const now = Date.now();
+    return await ctx.db.insert("userStories", {
+      orgId: args.orgId,
+      featureId: args.featureId,
+      persona: args.persona,
+      action: args.action,
+      benefit: args.benefit,
+      criteria: [],
+      sortOrder: existing.length,
+      createdBy: args.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
   },
 });
 

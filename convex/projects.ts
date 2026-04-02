@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, internalQuery, MutationCtx } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation, MutationCtx } from "./_generated/server";
 import { getAuthUser } from "./lib/auth";
 import { Id } from "./_generated/dataModel";
 
@@ -436,6 +436,87 @@ export const getProjectTree = internalQuery({
     }
 
     return { ...project, capabilities: tree };
+  },
+});
+
+// ─── Internal mutations for HTTP Actions ────────────────
+
+export const createInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (args.name.length < 1 || args.name.length > 100) {
+      throw new Error("Name must be between 1 and 100 characters");
+    }
+
+    let baseSlug = toSlug(args.name);
+    if (baseSlug.length < 2) {
+      baseSlug = "project";
+    }
+
+    let slug = baseSlug;
+    let suffix = 2;
+    while (true) {
+      const existing = await ctx.db
+        .query("projects")
+        .withIndex("by_org_and_slug", (q) => q.eq("orgId", args.orgId).eq("slug", slug))
+        .unique();
+      if (!existing) break;
+      slug = `${baseSlug}-${suffix}`;
+      suffix++;
+    }
+
+    const now = Date.now();
+    return await ctx.db.insert("projects", {
+      orgId: args.orgId,
+      slug,
+      name: args.name,
+      description: args.description ?? "",
+      visionContent: "",
+      visionVersionNumber: 1,
+      isPublic: false,
+      createdBy: args.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const updateVisionInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    projectId: v.id("projects"),
+    content: v.string(),
+    changeNote: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    const now = Date.now();
+
+    await ctx.db.insert("visionVersions", {
+      orgId: args.orgId,
+      projectId: args.projectId,
+      content: project.visionContent,
+      versionNumber: project.visionVersionNumber,
+      changeNote: args.changeNote ?? "",
+      changedBy: args.userId,
+      changedAt: now,
+    });
+
+    await ctx.db.patch(args.projectId, {
+      visionContent: args.content,
+      visionVersionNumber: project.visionVersionNumber + 1,
+      updatedAt: now,
+    });
   },
 });
 

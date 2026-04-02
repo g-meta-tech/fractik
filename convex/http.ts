@@ -781,6 +781,112 @@ http.route({
                     required: ["specId", "type", "description"],
                   },
                 },
+                {
+                  name: "create_project",
+                  description: "Create a new project in the organization",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string", description: "Project name" },
+                      description: { type: "string", description: "Project description" },
+                    },
+                    required: ["name"],
+                  },
+                },
+                {
+                  name: "create_capability",
+                  description: "Create a capability under a project",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      projectId: { type: "string", description: "Project ID" },
+                      name: { type: "string", description: "Capability name" },
+                      description: { type: "string", description: "Capability description" },
+                    },
+                    required: ["projectId", "name"],
+                  },
+                },
+                {
+                  name: "create_feature",
+                  description: "Create a feature under a capability",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      capabilityId: { type: "string", description: "Capability ID" },
+                      name: { type: "string", description: "Feature name" },
+                      description: { type: "string", description: "Feature description" },
+                    },
+                    required: ["capabilityId", "name"],
+                  },
+                },
+                {
+                  name: "create_user_story",
+                  description: "Create a user story under a feature. Format: As a [persona], I want to [action] so that [benefit]",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      featureId: { type: "string", description: "Feature ID" },
+                      persona: { type: "string", description: "User persona (e.g. 'product manager')" },
+                      action: { type: "string", description: "What the user wants to do" },
+                      benefit: { type: "string", description: "Why they want to do it" },
+                    },
+                    required: ["featureId", "persona", "action", "benefit"],
+                  },
+                },
+                {
+                  name: "create_spec",
+                  description: "Create a spec under a feature",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      featureId: { type: "string", description: "Feature ID" },
+                      type: { type: "string", enum: ["NF", "BE", "FE", "DA"], description: "Spec type: NF=Non-functional, BE=Backend, FE=Frontend, DA=Data" },
+                      title: { type: "string", description: "Spec title" },
+                      content: { type: "string", description: "Spec content in markdown" },
+                    },
+                    required: ["featureId", "type", "title"],
+                  },
+                },
+                {
+                  name: "create_test_case",
+                  description: "Create a test case for a spec",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      specId: { type: "string", description: "Spec ID" },
+                      type: { type: "string", enum: ["unit", "integration", "e2e", "manual"], description: "Test type" },
+                      title: { type: "string", description: "Test case title" },
+                      preconditions: { type: "string", description: "Preconditions for the test" },
+                    },
+                    required: ["specId", "type", "title"],
+                  },
+                },
+                {
+                  name: "update_vision",
+                  description: "Update the vision content of a project",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      projectSlug: { type: "string", description: "Project slug" },
+                      content: { type: "string", description: "New vision content in markdown" },
+                      changeNote: { type: "string", description: "Note describing the change" },
+                    },
+                    required: ["projectSlug", "content"],
+                  },
+                },
+                {
+                  name: "update_spec_content",
+                  description: "Update the content of a spec (creates a version)",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      specId: { type: "string", description: "Spec ID" },
+                      content: { type: "string", description: "New spec content in markdown" },
+                      changeNote: { type: "string", description: "Note describing the change" },
+                    },
+                    required: ["specId", "content"],
+                  },
+                },
               ],
             },
             id,
@@ -986,6 +1092,142 @@ http.route({
                   description: toolArgs.description,
                 });
                 return mcpToolResult(id, "Divergence reported");
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "create_project": {
+              try {
+                const projectId = await ctx.runMutation(internal.projects.createInternal, {
+                  orgId: auth.orgId,
+                  userId: auth.userId,
+                  name: toolArgs.name,
+                  description: toolArgs.description,
+                });
+                return mcpToolResult(id, `Project created with ID: ${projectId}`);
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "create_capability": {
+              try {
+                const capId = await ctx.runMutation(internal.capabilities.createInternal, {
+                  orgId: auth.orgId,
+                  userId: auth.userId,
+                  projectId: toolArgs.projectId as Id<"projects">,
+                  name: toolArgs.name,
+                  description: toolArgs.description,
+                });
+                return mcpToolResult(id, `Capability created with ID: ${capId}`);
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "create_feature": {
+              try {
+                const featId = await ctx.runMutation(internal.features.createInternal, {
+                  orgId: auth.orgId,
+                  userId: auth.userId,
+                  capabilityId: toolArgs.capabilityId as Id<"capabilities">,
+                  name: toolArgs.name,
+                  description: toolArgs.description,
+                });
+                return mcpToolResult(id, `Feature created with ID: ${featId}`);
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "create_user_story": {
+              try {
+                const storyId = await ctx.runMutation(internal.userStories.createInternal, {
+                  orgId: auth.orgId,
+                  userId: auth.userId,
+                  featureId: toolArgs.featureId as Id<"features">,
+                  persona: toolArgs.persona,
+                  action: toolArgs.action,
+                  benefit: toolArgs.benefit,
+                });
+                return mcpToolResult(id, `User story created with ID: ${storyId}`);
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "create_spec": {
+              try {
+                const specId = await ctx.runMutation(internal.specs.createInternal, {
+                  orgId: auth.orgId,
+                  userId: auth.userId,
+                  featureId: toolArgs.featureId as Id<"features">,
+                  type: toolArgs.type,
+                  title: toolArgs.title,
+                  content: toolArgs.content,
+                });
+                return mcpToolResult(id, `Spec created with ID: ${specId}`);
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "create_test_case": {
+              try {
+                const testId = await ctx.runMutation(internal.testCases.createInternal, {
+                  orgId: auth.orgId,
+                  userId: auth.userId,
+                  specId: toolArgs.specId as Id<"specs">,
+                  type: toolArgs.type,
+                  title: toolArgs.title,
+                  preconditions: toolArgs.preconditions,
+                });
+                return mcpToolResult(id, `Test case created with ID: ${testId}`);
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "update_vision": {
+              try {
+                const project = await ctx.runQuery(internal.projects.getBySlugInternal, {
+                  orgId: auth.orgId,
+                  slug: toolArgs.projectSlug,
+                });
+                if (!project) return mcpToolResult(id, "Project not found", true);
+
+                await ctx.runMutation(internal.projects.updateVisionInternal, {
+                  orgId: auth.orgId,
+                  userId: auth.userId,
+                  projectId: project._id,
+                  content: toolArgs.content,
+                  changeNote: toolArgs.changeNote,
+                });
+                return mcpToolResult(id, "Vision updated");
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "update_spec_content": {
+              try {
+                await ctx.runMutation(internal.specs.updateContentInternal, {
+                  orgId: auth.orgId,
+                  userId: auth.userId,
+                  specId: toolArgs.specId as Id<"specs">,
+                  content: toolArgs.content,
+                  changeNote: toolArgs.changeNote,
+                });
+                return mcpToolResult(id, "Spec content updated (new version created)");
               } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "Error";
                 return mcpToolResult(id, msg, true);

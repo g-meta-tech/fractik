@@ -830,7 +830,35 @@ El MCP Server se implementa como HTTP Actions adicionales en `convex/http.ts` qu
 | report_divergence | POST /api/divergences | specId, type, description |
 
 Responses formateadas como texto legible (no JSON crudo).
-Auth via API key configurada en el MCP server config.
+
+### Auth dual:
+
+**CLI / Claude Desktop:** API key (`fk_live_...`) como Bearer token. La key determina la org.
+
+**Claude.ai web:** OAuth 2.0 con Clerk como Identity Provider. Flujo:
+1. Claude.ai → `GET /.well-known/oauth-authorization-server` (metadata en Convex)
+2. Claude.ai → DCR en `POST /oauth/register` (devuelve Clerk OAuth client credentials)
+3. Redirect a Clerk `/oauth/authorize` → usuario se loguea y selecciona org
+4. Clerk redirect back a Claude.ai con auth code
+5. Claude.ai intercambia code por token en Clerk `/oauth/token`
+6. Claude.ai envía MCP requests con Bearer token (Clerk OAuth access token)
+7. MCP valida token via Clerk `/oauth/userinfo` → extrae userId y orgId
+
+Endpoints OAuth requeridos en `http.ts`:
+- `GET /.well-known/oauth-authorization-server` — metadata RFC 8414
+- `POST /oauth/register` — Dynamic Client Registration (devuelve Clerk OAuth credentials)
+
+Env vars requeridas en Convex (dev + prod):
+- `CLERK_OAUTH_CLIENT_ID` — de Clerk Dashboard → OAuth Applications
+- `CLERK_OAUTH_CLIENT_SECRET` — de Clerk Dashboard → OAuth Applications
+- `CLERK_SECRET_KEY` — para fallback de org lookup via Clerk Backend API
+
+### Paso manual en Clerk Dashboard:
+
+1. Configure → OAuth Applications → Add OAuth Application
+2. Name: `Claude.ai MCP`
+3. Redirect URIs: `https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`
+4. Copiar Client ID y Client Secret → setear como env vars en Convex
 
 ---
 

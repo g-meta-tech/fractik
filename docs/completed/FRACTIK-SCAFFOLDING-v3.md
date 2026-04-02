@@ -59,6 +59,33 @@ Para preview/dev:
   ✓ CONVEX_DEPLOY_KEY dev (dev:xxx...)
 ```
 
+### Paso M3b: Clerk OAuth Application para MCP (5 min)
+
+> Necesario para que Claude.ai web pueda conectar al MCP Server via OAuth.
+
+- [ ] Clerk Dashboard → Configure → OAuth Applications → Add OAuth Application
+- [ ] Name: `Claude.ai MCP`
+- [ ] Redirect URIs:
+  - `https://claude.ai/api/mcp/auth_callback`
+  - `https://claude.com/api/mcp/auth_callback`
+- [ ] Copiar:
+
+```
+  ✓ CLERK_OAUTH_CLIENT_ID (del campo Client ID)
+  ✓ CLERK_OAUTH_CLIENT_SECRET (del campo Client Secret)
+```
+
+- [ ] Setear en Convex (dev + prod):
+
+```bash
+pnpm dlx convex env set CLERK_OAUTH_CLIENT_ID <client_id>
+pnpm dlx convex env set CLERK_OAUTH_CLIENT_SECRET <client_secret>
+pnpm dlx convex env set CLERK_SECRET_KEY <sk_test_...o sk_live_...>
+pnpm dlx convex env set CLERK_OAUTH_CLIENT_ID <client_id> --prod
+pnpm dlx convex env set CLERK_OAUTH_CLIENT_SECRET <client_secret> --prod
+pnpm dlx convex env set CLERK_SECRET_KEY <sk_live_...> --prod
+```
+
 ### Paso M4: Crear .env.local (2 min)
 
 - [ ] En el directorio de trabajo, crear `.env.local` con las keys reales:
@@ -78,7 +105,7 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
 
 > Nota: `CONVEX_DEPLOYMENT` se agrega automáticamente por `convex init` (paso 6). No incluirlo aquí.
 
-**Total pasos M1-M4: ~22 min. Claude Code puede arrancar después.**
+**Total pasos M1-M4: ~27 min. Claude Code puede arrancar después.**
 
 ---
 

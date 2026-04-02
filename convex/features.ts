@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { getAuthUser } from "./lib/auth";
 import { cascadeDeleteFeature } from "./projects";
 
@@ -138,6 +138,43 @@ export const remove = mutation({
     }
 
     await cascadeDeleteFeature(ctx, args.featureId);
+  },
+});
+
+// ─── Internal mutations for HTTP Actions ────────────────
+
+export const createInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    capabilityId: v.id("capabilities"),
+    name: v.string(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const cap = await ctx.db.get(args.capabilityId);
+    if (!cap || cap.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    const existing = await ctx.db
+      .query("features")
+      .withIndex("by_capability", (q) => q.eq("capabilityId", args.capabilityId))
+      .collect();
+
+    const now = Date.now();
+    return await ctx.db.insert("features", {
+      orgId: args.orgId,
+      capabilityId: args.capabilityId,
+      name: args.name,
+      description: args.description ?? "",
+      acceptanceCriteria: [],
+      status: "draft",
+      sortOrder: existing.length,
+      createdBy: args.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
   },
 });
 
