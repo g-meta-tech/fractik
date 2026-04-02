@@ -1,0 +1,131 @@
+"use client";
+
+import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { useSidebar } from "@/hooks/use-sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useTheme } from "next-themes";
+import {
+  LayoutDashboard,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Sun,
+  Moon,
+  Monitor,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import Link from "next/link";
+
+export function Sidebar() {
+  const { collapsed, toggle } = useSidebar();
+  const { setTheme } = useTheme();
+
+  return (
+    <aside
+      className={`flex h-screen flex-col border-r bg-background transition-all duration-200 ${
+        collapsed ? "w-[60px]" : "w-[240px]"
+      }`}
+    >
+      {/* Top: Org switcher */}
+      <div className="flex items-center justify-between border-b p-3">
+        {!collapsed && (
+          <OrganizationSwitcher
+            hidePersonal
+            afterSelectOrganizationUrl="/dashboard"
+            appearance={{
+              elements: {
+                rootBox: "w-full",
+                organizationSwitcherTrigger: "w-full justify-start",
+              },
+            }}
+          />
+        )}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={<button type="button" />}
+              className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
+              onClick={toggle}
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {collapsed ? "Expandir" : "Colapsar"}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
+      {/* Middle: Navigation */}
+      <nav className="flex-1 overflow-y-auto p-2">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        >
+          <LayoutDashboard className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Dashboard</span>}
+        </Link>
+
+        {/* Placeholder: lista de proyectos irá aquí en Sprint Core */}
+        {!collapsed && (
+          <div className="mt-4 px-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Proyectos
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Sin proyectos aún
+            </p>
+          </div>
+        )}
+      </nav>
+
+      {/* Bottom: Theme toggle + User */}
+      <div className="border-t p-3 space-y-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
+            <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <span className="sr-only">Cambiar tema</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setTheme("light")}>
+              <Sun className="mr-2 h-4 w-4" />
+              Claro
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("dark")}>
+              <Moon className="mr-2 h-4 w-4" />
+              Oscuro
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("system")}>
+              <Monitor className="mr-2 h-4 w-4" />
+              Sistema
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className={collapsed ? "flex justify-center" : ""}>
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "h-8 w-8",
+              },
+            }}
+          />
+        </div>
+      </div>
+    </aside>
+  );
+}
