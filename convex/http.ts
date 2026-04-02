@@ -21,13 +21,21 @@ function errorResponse(error: string, status: number) {
   return jsonResponse({ error }, status);
 }
 
+interface AuthResult {
+  orgId: string;
+  userId: string;
+}
+
 async function validateApiKeyAsync(
   ctx: ActionCtx,
   request: Request,
-): Promise<{ orgId: string; userId: string; keyId: Id<"apiKeys"> } | null> {
+): Promise<AuthResult | null> {
   const header = request.headers.get("Authorization");
   if (!header?.startsWith("Bearer ")) return null;
   const key = header.slice(7);
+
+  // Skip tokens that look like Clerk OAuth tokens (not API keys)
+  if (!key.startsWith("fk_live_")) return null;
 
   // Hash with Web Crypto API (available in Convex default runtime)
   const encoder = new TextEncoder();
@@ -44,13 +52,80 @@ async function validateApiKeyAsync(
   return result;
 }
 
+async function validateClerkOAuthToken(
+  request: Request,
+): Promise<AuthResult | null> {
+  const header = request.headers.get("Authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+  const token = header.slice(7);
+
+  // Skip API keys
+  if (token.startsWith("fk_live_")) return null;
+
+  const clerkDomain = process.env.CLERK_JWT_ISSUER_DOMAIN;
+  if (!clerkDomain) return null;
+
+  try {
+    const response = await fetch(`${clerkDomain}/oauth/userinfo`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!response.ok) return null;
+
+    const userinfo = (await response.json()) as Record<string, unknown>;
+    const userId = userinfo.sub as string | undefined;
+    if (!userId) return null;
+
+    // org_id comes from Clerk's OAuth scope when org is selected
+    const orgId = userinfo.org_id as string | undefined;
+    if (!orgId) {
+      // Try to get the user's active org via Clerk Backend API
+      const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+      if (!clerkSecretKey) return null;
+
+      const userResponse = await fetch(
+        `https://api.clerk.com/v1/users/${userId}/organization_memberships?limit=1`,
+        { headers: { Authorization: `Bearer ${clerkSecretKey}` } },
+      );
+      if (!userResponse.ok) return null;
+
+      const memberships = (await userResponse.json()) as {
+        data: Array<{ organization: { id: string } }>;
+      };
+      const firstOrg = memberships.data[0];
+      if (!firstOrg) return null;
+
+      return { userId, orgId: firstOrg.organization.id };
+    }
+
+    return { userId, orgId };
+  } catch {
+    return null;
+  }
+}
+
+async function authenticateRequest(
+  ctx: ActionCtx,
+  request: Request,
+): Promise<AuthResult | null> {
+  // Try API key first (CLI / Claude Desktop)
+  const apiKeyAuth = await validateApiKeyAsync(ctx, request);
+  if (apiKeyAuth) return apiKeyAuth;
+
+  // Try Clerk OAuth token (Claude.ai web)
+  const oauthAuth = await validateClerkOAuthToken(request);
+  if (oauthAuth) return oauthAuth;
+
+  return null;
+}
+
 // ─── REST API: Read endpoints (BE-026) ───────────────────
 
 http.route({
   path: "/api/projects",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const projects = await ctx.runQuery(internal.projects.listByOrg, {
@@ -65,7 +140,7 @@ http.route({
   path: "/api/specs/design-system",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
@@ -91,7 +166,7 @@ http.route({
   path: "/api/specs/data-model",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
@@ -117,7 +192,7 @@ http.route({
   path: "/api/library/specs",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const specs = await ctx.runQuery(internal.library.listSpecsInternal, {
@@ -134,7 +209,7 @@ http.route({
   path: "/api/divergences",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const body = await request.json();
@@ -167,7 +242,7 @@ http.route({
   path: "/api/tree",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
@@ -189,7 +264,7 @@ http.route({
   path: "/api/specs",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
@@ -219,7 +294,7 @@ http.route({
   path: "/api/spec-versions",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
@@ -246,7 +321,7 @@ http.route({
   path: "/api/specs/status",
   method: "PATCH",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const body = await request.json();
@@ -273,7 +348,7 @@ http.route({
   path: "/api/tests/status",
   method: "PATCH",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const body = await request.json();
@@ -302,7 +377,7 @@ http.route({
   path: "/api/sprints/log",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const body = await request.json();
@@ -331,7 +406,7 @@ http.route({
   path: "/api/sprints/defects",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const body = await request.json();
@@ -365,7 +440,7 @@ http.route({
   path: "/api/coverage",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
@@ -415,7 +490,7 @@ http.route({
   path: "/api/gaps",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
     const url = new URL(request.url);
@@ -476,13 +551,65 @@ http.route({
   }),
 });
 
+// ─── OAuth for MCP (Clerk as IdP) ────────────────────────
+
+http.route({
+  path: "/.well-known/oauth-authorization-server",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const origin = new URL(request.url).origin;
+    const clerkDomain = process.env.CLERK_JWT_ISSUER_DOMAIN;
+
+    if (!clerkDomain) {
+      return errorResponse("OAuth not configured", 500);
+    }
+
+    return jsonResponse({
+      issuer: origin,
+      authorization_endpoint: `${clerkDomain}/oauth/authorize`,
+      token_endpoint: `${clerkDomain}/oauth/token`,
+      registration_endpoint: `${origin}/oauth/register`,
+      response_types_supported: ["code"],
+      grant_types_supported: ["authorization_code", "refresh_token"],
+      code_challenge_methods_supported: ["S256"],
+      token_endpoint_auth_methods_supported: ["client_secret_post"],
+    });
+  }),
+});
+
+http.route({
+  path: "/oauth/register",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const body = (await request.json()) as { redirect_uris?: string[] };
+
+    const clientId = process.env.CLERK_OAUTH_CLIENT_ID;
+    const clientSecret = process.env.CLERK_OAUTH_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      return errorResponse("OAuth not configured. Set CLERK_OAUTH_CLIENT_ID and CLERK_OAUTH_CLIENT_SECRET.", 500);
+    }
+
+    return jsonResponse({
+      client_id: clientId,
+      client_secret: clientSecret,
+      client_id_issued_at: Math.floor(Date.now() / 1000),
+      client_secret_expires_at: 0,
+      redirect_uris: body.redirect_uris ?? [],
+      token_endpoint_auth_method: "client_secret_post",
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+    });
+  }),
+});
+
 // ─── MCP Server (BE-028) ────────────────────────────────
 
 http.route({
   path: "/mcp",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const auth = await validateApiKeyAsync(ctx, request);
+    const auth = await authenticateRequest(ctx, request);
     if (!auth) {
       return jsonResponse(
         {
