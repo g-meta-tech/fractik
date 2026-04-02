@@ -349,9 +349,21 @@ export const getVisionVersion = query({
   },
 });
 
+export const listByOrg = query({
+  args: {},
+  handler: async (ctx) => {
+    const { orgId } = await getAuthUser(ctx);
+    const projects = await ctx.db
+      .query("projects")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    return projects.sort((a, b) => b.updatedAt - a.updatedAt);
+  },
+});
+
 // ─── Internal queries for HTTP Actions ───────────────────
 
-export const listByOrg = internalQuery({
+export const listByOrgInternal = internalQuery({
   args: { orgId: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db

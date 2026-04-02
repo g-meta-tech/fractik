@@ -128,7 +128,7 @@ http.route({
     const auth = await authenticateRequest(ctx, request);
     if (!auth) return errorResponse("Unauthorized", 401);
 
-    const projects = await ctx.runQuery(internal.projects.listByOrg, {
+    const projects = await ctx.runQuery(internal.projects.listByOrgInternal, {
       orgId: auth.orgId,
     });
 
