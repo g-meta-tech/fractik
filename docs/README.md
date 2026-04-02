@@ -4,36 +4,29 @@ This directory contains product specs and documentation for Fractik.
 
 ## Current Status
 
-Fractik is in the **scaffolding phase**. The infrastructure is set up:
+Scaffolding and Sprint Core are complete. The platform has:
 
 - Next.js 16 + Convex + Clerk + Shadcn
 - Auth with multi-tenancy (Clerk organizations)
 - CI/CD pipeline (GitHub Actions + Vercel auto-deploy)
 - Production live at fractik.g-meta.tech
+- Full data layer (18 tables, CRUD functions, HTTP Actions, MCP Server, API keys)
 
-## What's Next: Sprint Core
+## Completed
 
-The next phase will implement the core data model and APIs:
+Implemented context packages are archived in `docs/completed/`:
 
-- **DA-001:** Data model in Convex (projects, capabilities, features, specs, tests, apiKeys)
-- **NF-001:** Auth pattern with getAuthUser()
-- **BE-001 to BE-005:** CRUD functions, HTTP Actions, MCP Server
+- **FRACTIK-SCAFFOLDING-v3.md** — Infrastructure, auth, CI/CD, UI shell
+- **CONTEXT-SPRINT-CORE.md** — Data model, CRUD, HTTP Actions, MCP Server
 
 ## How This Directory Works
 
-Specs and product documents live here temporarily. Once the Sprint Core is complete (MCP Server operational), this data will be loaded into Fractik itself and this directory will no longer be the source of truth.
-
-### Adding Specs
-
-Place spec files here following this convention:
+Context packages are placed here for Claude Code to implement. Once implemented, they move to `completed/`.
 
 ```
 docs/
-  specs/
-    DA-001-data-model.md
-    NF-001-auth-pattern.md
-    BE-001-crud-functions.md
-    ...
+  CONTEXT-{name}.md             Active context packages (pending implementation)
+  completed/                    Implemented context packages (reference only)
 ```
 
-Claude Code reads specs from this directory to implement features.
+Claude Code reads context packages from this directory to implement features.

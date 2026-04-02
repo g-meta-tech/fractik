@@ -74,6 +74,7 @@ convex/
   lib/auth.ts                   Auth helper (getAuthUser)
   http.ts                       HTTP Actions router
 docs/                           Product documentation
+  completed/                    Implemented context packages
 ```
 
 ## CI/CD
@@ -89,6 +90,13 @@ docs/                           Product documentation
 | Production | `main` | fractik.g-meta.tech | prod deployment |
 | Preview | `dev` / PRs | Preview URLs | dev deployment |
 | Local | any | localhost:3000 | dev deployment |
+
+## Implementation Progress
+
+Completed context packages are archived in `docs/completed/`:
+
+- **Scaffolding v3** — Next.js 16 + Convex + Clerk + Shadcn + Vercel + CI/CD
+- **Sprint Core** — Data layer, CRUD functions, HTTP Actions, MCP Server, API keys
 
 ## Contributing
 
