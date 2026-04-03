@@ -1027,6 +1027,33 @@ http.route({
                     required: ["capabilityId"],
                   },
                 },
+                {
+                  name: "create_sprint",
+                  description: "Create a sprint for a project with name and date range",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      projectSlug: { type: "string", description: "Project slug" },
+                      name: { type: "string", description: "Sprint name" },
+                      startDate: { type: "string", description: "Start date (ISO format, e.g. 2026-04-03)" },
+                      endDate: { type: "string", description: "End date (ISO format, e.g. 2026-04-10)" },
+                    },
+                    required: ["projectSlug", "name", "startDate", "endDate"],
+                  },
+                },
+                {
+                  name: "add_sprint_item",
+                  description: "Add a spec or test case to a sprint as a work item",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      sprintId: { type: "string", description: "Sprint ID" },
+                      entityType: { type: "string", enum: ["spec", "test"], description: "Type of entity" },
+                      entityId: { type: "string", description: "Spec or Test Case ID" },
+                    },
+                    required: ["sprintId", "entityType", "entityId"],
+                  },
+                },
               ],
             },
             id,
@@ -1588,6 +1615,44 @@ http.route({
               }
 
               return mcpToolResult(id, lines.join("\n"));
+            }
+
+            case "create_sprint": {
+              try {
+                const project = await ctx.runQuery(internal.projects.getBySlugInternal, {
+                  orgId: auth.orgId,
+                  slug: toolArgs.projectSlug,
+                });
+                if (!project) return mcpToolResult(id, "Project not found", true);
+
+                const sprintId = await ctx.runMutation(internal.sprints.createInternal, {
+                  orgId: auth.orgId,
+                  userId: auth.userId,
+                  projectId: project._id,
+                  name: toolArgs.name,
+                  startDate: new Date(toolArgs.startDate as string).getTime(),
+                  endDate: new Date(toolArgs.endDate as string).getTime(),
+                });
+                return mcpToolResult(id, `Sprint created with ID: ${sprintId}`);
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "add_sprint_item": {
+              try {
+                const itemId = await ctx.runMutation(internal.sprints.addSprintItemInternal, {
+                  orgId: auth.orgId,
+                  sprintId: toolArgs.sprintId as Id<"sprints">,
+                  entityType: toolArgs.entityType,
+                  entityId: toolArgs.entityId,
+                });
+                return mcpToolResult(id, `Sprint item added with ID: ${itemId}`);
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
             }
 
             default:

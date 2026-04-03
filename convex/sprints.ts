@@ -215,6 +215,62 @@ export const addDefect = mutation({
 
 // ─── Internal for HTTP Actions ───────────────────────────
 
+export const createInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    userId: v.string(),
+    projectId: v.id("projects"),
+    name: v.string(),
+    startDate: v.number(),
+    endDate: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    const now = Date.now();
+    return await ctx.db.insert("sprints", {
+      orgId: args.orgId,
+      projectId: args.projectId,
+      name: args.name,
+      startDate: args.startDate,
+      endDate: args.endDate,
+      status: "planning",
+      createdBy: args.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const addSprintItemInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    sprintId: v.id("sprints"),
+    entityType: v.union(v.literal("spec"), v.literal("test")),
+    entityId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const sprint = await ctx.db.get(args.sprintId);
+    if (!sprint || sprint.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    const now = Date.now();
+    return await ctx.db.insert("sprintItems", {
+      orgId: args.orgId,
+      sprintId: args.sprintId,
+      entityType: args.entityType,
+      entityId: args.entityId,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
 export const addLogEntryInternal = internalMutation({
   args: {
     orgId: v.string(),
