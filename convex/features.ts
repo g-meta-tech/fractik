@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, internalMutation } from "./_generated/server";
+import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { getAuthUser } from "./lib/auth";
 import { cascadeDeleteFeature } from "./projects";
 
@@ -202,6 +202,15 @@ export const updateInternal = internalMutation({
     featureId: v.id("features"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
+    status: v.optional(
+      v.union(
+        v.literal("draft"),
+        v.literal("defined"),
+        v.literal("spec_ready"),
+        v.literal("in_progress"),
+        v.literal("done"),
+      ),
+    ),
     acceptanceCriteria: v.optional(
       v.array(
         v.object({
@@ -221,11 +230,55 @@ export const updateInternal = internalMutation({
     await ctx.db.patch(args.featureId, {
       ...(args.name !== undefined && { name: args.name }),
       ...(args.description !== undefined && { description: args.description }),
+      ...(args.status !== undefined && { status: args.status }),
       ...(args.acceptanceCriteria !== undefined && {
         acceptanceCriteria: args.acceptanceCriteria,
       }),
       updatedAt: Date.now(),
     });
+  },
+});
+
+export const getDetailedInternal = internalQuery({
+  args: {
+    orgId: v.string(),
+    featureId: v.id("features"),
+  },
+  handler: async (ctx, args) => {
+    const feature = await ctx.db.get(args.featureId);
+    if (!feature || feature.orgId !== args.orgId) return null;
+
+    const stories = await ctx.db
+      .query("userStories")
+      .withIndex("by_feature", (q) => q.eq("featureId", args.featureId))
+      .collect();
+
+    const specs = await ctx.db
+      .query("specs")
+      .withIndex("by_feature", (q) => q.eq("featureId", args.featureId))
+      .collect();
+
+    const specsWithTests = await Promise.all(
+      specs.map(async (spec) => {
+        const tests = await ctx.db
+          .query("testCases")
+          .withIndex("by_spec", (q) => q.eq("specId", spec._id))
+          .collect();
+        return {
+          _id: spec._id,
+          type: spec.type,
+          title: spec.title,
+          status: spec.status,
+          testCount: tests.length,
+        };
+      }),
+    );
+
+    return {
+      ...feature,
+      stories: stories.sort((a, b) => a.sortOrder - b.sortOrder),
+      specs: specsWithTests,
+    };
   },
 });
 

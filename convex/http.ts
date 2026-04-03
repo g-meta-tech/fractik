@@ -826,13 +826,18 @@ http.route({
                 },
                 {
                   name: "update_feature",
-                  description: "Update a feature's name, description, or acceptance criteria",
+                  description: "Update a feature's name, description, status, or acceptance criteria",
                   inputSchema: {
                     type: "object",
                     properties: {
                       featureId: { type: "string", description: "Feature ID" },
                       name: { type: "string", description: "New feature name" },
                       description: { type: "string", description: "New feature description" },
+                      status: {
+                        type: "string",
+                        enum: ["draft", "defined", "spec_ready", "in_progress", "done"],
+                        description: "New feature status",
+                      },
                       acceptanceCriteria: {
                         type: "array",
                         items: { type: "string" },
@@ -844,7 +849,7 @@ http.route({
                 },
                 {
                   name: "update_project",
-                  description: "Update a project's name, description, or GitHub repo URL",
+                  description: "Update a project's name, description, GitHub repo URL, or visibility",
                   inputSchema: {
                     type: "object",
                     properties: {
@@ -852,6 +857,7 @@ http.route({
                       name: { type: "string", description: "New project name" },
                       description: { type: "string", description: "New project description" },
                       githubRepoUrl: { type: "string", description: "GitHub repository URL" },
+                      isPublic: { type: "boolean", description: "Toggle project visibility" },
                     },
                     required: ["projectSlug"],
                   },
@@ -927,6 +933,98 @@ http.route({
                       changeNote: { type: "string", description: "Note describing the change" },
                     },
                     required: ["specId", "content"],
+                  },
+                },
+                {
+                  name: "update_capability",
+                  description: "Update a capability's name, description, priority, or status",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      capabilityId: { type: "string", description: "Capability ID" },
+                      name: { type: "string", description: "New capability name" },
+                      description: { type: "string", description: "New capability description" },
+                      priority: {
+                        type: "string",
+                        enum: ["critical", "high", "medium", "low"],
+                        description: "New priority level",
+                      },
+                      status: {
+                        type: "string",
+                        enum: ["draft", "defined", "in_progress", "done"],
+                        description: "New status",
+                      },
+                    },
+                    required: ["capabilityId"],
+                  },
+                },
+                {
+                  name: "update_user_story",
+                  description: "Update a user story's persona, action, benefit, or criteria",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      storyId: { type: "string", description: "User Story ID" },
+                      persona: { type: "string", description: "User persona" },
+                      action: { type: "string", description: "What the user wants to do" },
+                      benefit: { type: "string", description: "Why they want to do it" },
+                      criteria: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Acceptance criteria as list of strings (replaces existing)",
+                      },
+                    },
+                    required: ["storyId"],
+                  },
+                },
+                {
+                  name: "update_test_case",
+                  description: "Update a test case's title, preconditions, or steps",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      testCaseId: { type: "string", description: "Test Case ID" },
+                      title: { type: "string", description: "New test case title" },
+                      preconditions: { type: "string", description: "New preconditions" },
+                      steps: {
+                        type: "string",
+                        description: "JSON array of steps: [{\"action\":\"...\",\"expectedResult\":\"...\"},...]",
+                      },
+                    },
+                    required: ["testCaseId"],
+                  },
+                },
+                {
+                  name: "get_project",
+                  description: "Get project metadata with stats (complementary to query_project which returns full tree)",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      slug: { type: "string", description: "Project slug" },
+                    },
+                    required: ["slug"],
+                  },
+                },
+                {
+                  name: "get_feature",
+                  description: "Get a feature with its acceptance criteria, user stories, specs, and test summary",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      featureId: { type: "string", description: "Feature ID" },
+                    },
+                    required: ["featureId"],
+                  },
+                },
+                {
+                  name: "get_capability",
+                  description: "Get a capability with its features summary",
+                  inputSchema: {
+                    type: "object",
+                    properties: {
+                      capabilityId: { type: "string", description: "Capability ID" },
+                    },
+                    required: ["capabilityId"],
                   },
                 },
               ],
@@ -1207,6 +1305,7 @@ http.route({
                   featureId: toolArgs.featureId as Id<"features">,
                   name: toolArgs.name,
                   description: toolArgs.description,
+                  status: toolArgs.status,
                   acceptanceCriteria: acObjects,
                 });
                 return mcpToolResult(id, "Feature updated");
@@ -1230,6 +1329,7 @@ http.route({
                   name: toolArgs.name,
                   description: toolArgs.description,
                   githubRepoUrl: toolArgs.githubRepoUrl,
+                  isPublic: toolArgs.isPublic,
                 });
                 return mcpToolResult(id, "Project updated");
               } catch (e: unknown) {
@@ -1334,6 +1434,162 @@ http.route({
               }
             }
 
+            case "update_capability": {
+              try {
+                await ctx.runMutation(internal.capabilities.updateInternal, {
+                  orgId: auth.orgId,
+                  capabilityId: toolArgs.capabilityId as Id<"capabilities">,
+                  name: toolArgs.name,
+                  description: toolArgs.description,
+                  priority: toolArgs.priority,
+                  status: toolArgs.status,
+                });
+                return mcpToolResult(id, "Capability updated");
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "update_user_story": {
+              try {
+                const crStrings = toolArgs.criteria as string[] | undefined;
+                const crObjects = crStrings?.map((text: string, i: number) => ({
+                  id: `cr-${Date.now()}-${i}`,
+                  text,
+                  sortOrder: i,
+                }));
+                await ctx.runMutation(internal.userStories.updateInternal, {
+                  orgId: auth.orgId,
+                  storyId: toolArgs.storyId as Id<"userStories">,
+                  persona: toolArgs.persona,
+                  action: toolArgs.action,
+                  benefit: toolArgs.benefit,
+                  criteria: crObjects,
+                });
+                return mcpToolResult(id, "User story updated");
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "update_test_case": {
+              try {
+                let stepsObjects: Array<{ id: string; action: string; expectedResult: string; sortOrder: number }> | undefined;
+                if (toolArgs.steps) {
+                  const parsed = JSON.parse(toolArgs.steps as string) as Array<{ action: string; expectedResult: string }>;
+                  stepsObjects = parsed.map((step: { action: string; expectedResult: string }, i: number) => ({
+                    id: `step-${Date.now()}-${i}`,
+                    action: step.action,
+                    expectedResult: step.expectedResult,
+                    sortOrder: i,
+                  }));
+                }
+                await ctx.runMutation(internal.testCases.updateInternal, {
+                  orgId: auth.orgId,
+                  testCaseId: toolArgs.testCaseId as Id<"testCases">,
+                  title: toolArgs.title,
+                  preconditions: toolArgs.preconditions,
+                  steps: stepsObjects,
+                });
+                return mcpToolResult(id, "Test case updated");
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Error";
+                return mcpToolResult(id, msg, true);
+              }
+            }
+
+            case "get_project": {
+              const meta = await ctx.runQuery(internal.projects.getMetaInternal, {
+                orgId: auth.orgId,
+                slug: toolArgs.slug,
+              });
+              if (!meta) return mcpToolResult(id, "Project not found", true);
+
+              const lines = [
+                `# ${meta.name}`,
+                `Slug: ${meta.slug}`,
+                `Description: ${meta.description}`,
+                `GitHub: ${meta.githubRepoUrl ?? "(not set)"}`,
+                `Public: ${meta.isPublic}`,
+                `Vision version: ${meta.visionVersionNumber}`,
+                "",
+                "## Stats",
+                `- Capabilities: ${meta.stats.capabilityCount}`,
+                `- Features: ${meta.stats.featureCount}`,
+                `- Specs: ${meta.stats.specCount}`,
+                `- Test cases: ${meta.stats.testCount}`,
+              ];
+              return mcpToolResult(id, lines.join("\n"));
+            }
+
+            case "get_feature": {
+              const detail = await ctx.runQuery(internal.features.getDetailedInternal, {
+                orgId: auth.orgId,
+                featureId: toolArgs.featureId as Id<"features">,
+              });
+              if (!detail) return mcpToolResult(id, "Feature not found", true);
+
+              const lines = [
+                `# ${detail.name} [${detail.status}]`,
+                `ID: ${detail._id}`,
+                detail.description ? `Description: ${detail.description}` : "",
+                "",
+              ];
+
+              if (detail.acceptanceCriteria.length > 0) {
+                lines.push(`## Acceptance Criteria (${detail.acceptanceCriteria.length})`);
+                for (const [i, ac] of detail.acceptanceCriteria.entries()) {
+                  lines.push(`${i + 1}. ${ac.text}`);
+                }
+                lines.push("");
+              }
+
+              if (detail.stories.length > 0) {
+                lines.push(`## User Stories (${detail.stories.length})`);
+                for (const story of detail.stories) {
+                  lines.push(`- As a ${story.persona}, I want to ${story.action} so that ${story.benefit} (id: ${story._id})`);
+                }
+                lines.push("");
+              }
+
+              if (detail.specs.length > 0) {
+                lines.push(`## Specs (${detail.specs.length})`);
+                for (const spec of detail.specs) {
+                  lines.push(`- [${spec.type}] ${spec.title} [${spec.status}] (${spec.testCount} tests) (id: ${spec._id})`);
+                }
+              }
+
+              return mcpToolResult(id, lines.join("\n"));
+            }
+
+            case "get_capability": {
+              const detail = await ctx.runQuery(internal.capabilities.getDetailedInternal, {
+                orgId: auth.orgId,
+                capabilityId: toolArgs.capabilityId as Id<"capabilities">,
+              });
+              if (!detail) return mcpToolResult(id, "Capability not found", true);
+
+              const lines = [
+                `# ${detail.name} [${detail.status}] (${detail.priority})`,
+                `ID: ${detail._id}`,
+                detail.description ? `Description: ${detail.description}` : "",
+                "",
+              ];
+
+              if (detail.features.length > 0) {
+                lines.push(`## Features (${detail.features.length})`);
+                for (const feat of detail.features) {
+                  lines.push(`- ${feat.name} [${feat.status}] (${feat.specCount} specs) (id: ${feat._id})`);
+                }
+              } else {
+                lines.push("No features yet.");
+              }
+
+              return mcpToolResult(id, lines.join("\n"));
+            }
+
             default:
               return jsonResponse({
                 jsonrpc: "2.0",
@@ -1401,6 +1657,7 @@ interface ProjectTreeFeature {
   name: string;
   status: string;
   description: string;
+  acceptanceCriteria?: Array<{ id: string; text: string; sortOrder: number }>;
   specs: ProjectTreeSpec[];
   userStories: ProjectTreeUserStory[];
 }
@@ -1435,6 +1692,13 @@ function formatProjectTree(tree: ProjectTree): string {
     for (const feat of cap.features) {
       lines.push(`  ### ${feat.name} [${feat.status}] (id: ${feat._id})`);
       if (feat.description) lines.push(`    ${feat.description}`);
+
+      if (feat.acceptanceCriteria && feat.acceptanceCriteria.length > 0) {
+        lines.push(`    Acceptance Criteria (${feat.acceptanceCriteria.length}):`);
+        for (const ac of feat.acceptanceCriteria) {
+          lines.push(`      - ${ac.text}`);
+        }
+      }
 
       if (feat.userStories.length > 0) {
         for (const story of feat.userStories) {

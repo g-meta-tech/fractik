@@ -387,6 +387,62 @@ export const getBySlugInternal = internalQuery({
   },
 });
 
+export const getMetaInternal = internalQuery({
+  args: { orgId: v.string(), slug: v.string() },
+  handler: async (ctx, args) => {
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_org_and_slug", (q) =>
+        q.eq("orgId", args.orgId).eq("slug", args.slug),
+      )
+      .unique();
+    if (!project) return null;
+
+    const capabilities = await ctx.db
+      .query("capabilities")
+      .withIndex("by_project", (q) => q.eq("projectId", project._id))
+      .collect();
+
+    let featureCount = 0;
+    let specCount = 0;
+    let testCount = 0;
+
+    for (const cap of capabilities) {
+      const features = await ctx.db
+        .query("features")
+        .withIndex("by_capability", (q) => q.eq("capabilityId", cap._id))
+        .collect();
+      featureCount += features.length;
+
+      for (const feat of features) {
+        const specs = await ctx.db
+          .query("specs")
+          .withIndex("by_feature", (q) => q.eq("featureId", feat._id))
+          .collect();
+        specCount += specs.length;
+
+        for (const spec of specs) {
+          const tests = await ctx.db
+            .query("testCases")
+            .withIndex("by_spec", (q) => q.eq("specId", spec._id))
+            .collect();
+          testCount += tests.length;
+        }
+      }
+    }
+
+    return {
+      ...project,
+      stats: {
+        capabilityCount: capabilities.length,
+        featureCount,
+        specCount,
+        testCount,
+      },
+    };
+  },
+});
+
 export const getProjectTree = internalQuery({
   args: { orgId: v.string(), slug: v.string() },
   handler: async (ctx, args) => {
@@ -507,6 +563,7 @@ export const updateInternal = internalMutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     githubRepoUrl: v.optional(v.string()),
+    isPublic: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
@@ -522,6 +579,7 @@ export const updateInternal = internalMutation({
       ...(args.name !== undefined && { name: args.name }),
       ...(args.description !== undefined && { description: args.description }),
       ...(args.githubRepoUrl !== undefined && { githubRepoUrl: args.githubRepoUrl }),
+      ...(args.isPublic !== undefined && { isPublic: args.isPublic }),
       updatedAt: Date.now(),
     });
   },

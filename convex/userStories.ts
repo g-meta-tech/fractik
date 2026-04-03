@@ -138,6 +138,39 @@ export const createInternal = internalMutation({
   },
 });
 
+export const updateInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    storyId: v.id("userStories"),
+    persona: v.optional(v.string()),
+    action: v.optional(v.string()),
+    benefit: v.optional(v.string()),
+    criteria: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          text: v.string(),
+          sortOrder: v.number(),
+        }),
+      ),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const story = await ctx.db.get(args.storyId);
+    if (!story || story.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    await ctx.db.patch(args.storyId, {
+      ...(args.persona !== undefined && { persona: args.persona }),
+      ...(args.action !== undefined && { action: args.action }),
+      ...(args.benefit !== undefined && { benefit: args.benefit }),
+      ...(args.criteria !== undefined && { criteria: args.criteria }),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const listByFeature = query({
   args: { featureId: v.id("features") },
   handler: async (ctx, args) => {

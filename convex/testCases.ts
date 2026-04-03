@@ -210,6 +210,40 @@ export const listBySpecInternal = internalQuery({
   },
 });
 
+export const updateInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    testCaseId: v.id("testCases"),
+    title: v.optional(v.string()),
+    preconditions: v.optional(v.string()),
+    steps: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          action: v.string(),
+          expectedResult: v.string(),
+          sortOrder: v.number(),
+        }),
+      ),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const test = await ctx.db.get(args.testCaseId);
+    if (!test || test.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    await ctx.db.patch(args.testCaseId, {
+      ...(args.title !== undefined && { title: args.title }),
+      ...(args.preconditions !== undefined && {
+        preconditions: args.preconditions,
+      }),
+      ...(args.steps !== undefined && { steps: args.steps }),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const updateStatusInternal = internalMutation({
   args: {
     orgId: v.string(),

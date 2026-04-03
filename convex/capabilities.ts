@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, internalMutation } from "./_generated/server";
+import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { getAuthUser } from "./lib/auth";
 import { cascadeDeleteFeature } from "./projects";
 
@@ -173,6 +173,86 @@ export const createInternal = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
+  },
+});
+
+export const updateInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    capabilityId: v.id("capabilities"),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    priority: v.optional(
+      v.union(
+        v.literal("critical"),
+        v.literal("high"),
+        v.literal("medium"),
+        v.literal("low"),
+      ),
+    ),
+    status: v.optional(
+      v.union(
+        v.literal("draft"),
+        v.literal("defined"),
+        v.literal("in_progress"),
+        v.literal("done"),
+      ),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const cap = await ctx.db.get(args.capabilityId);
+    if (!cap || cap.orgId !== args.orgId) {
+      throw new Error("Not found");
+    }
+
+    await ctx.db.patch(args.capabilityId, {
+      ...(args.name !== undefined && { name: args.name }),
+      ...(args.description !== undefined && { description: args.description }),
+      ...(args.priority !== undefined && { priority: args.priority }),
+      ...(args.status !== undefined && { status: args.status }),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const getDetailedInternal = internalQuery({
+  args: {
+    orgId: v.string(),
+    capabilityId: v.id("capabilities"),
+  },
+  handler: async (ctx, args) => {
+    const cap = await ctx.db.get(args.capabilityId);
+    if (!cap || cap.orgId !== args.orgId) return null;
+
+    const features = await ctx.db
+      .query("features")
+      .withIndex("by_capability", (q) => q.eq("capabilityId", args.capabilityId))
+      .collect();
+
+    const featuresWithCounts = await Promise.all(
+      features.map(async (feat) => {
+        const specs = await ctx.db
+          .query("specs")
+          .withIndex("by_feature", (q) => q.eq("featureId", feat._id))
+          .collect();
+        return {
+          _id: feat._id,
+          name: feat.name,
+          status: feat.status,
+          description: feat.description,
+          specCount: specs.length,
+        };
+      }),
+    );
+
+    return {
+      ...cap,
+      features: featuresWithCounts.sort((a, b) => {
+        const fa = features.find((f) => f._id === a._id);
+        const fb = features.find((f) => f._id === b._id);
+        return (fa?.sortOrder ?? 0) - (fb?.sortOrder ?? 0);
+      }),
+    };
   },
 });
 
