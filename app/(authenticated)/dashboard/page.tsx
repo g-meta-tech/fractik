@@ -3,17 +3,20 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { FolderOpen } from "lucide-react";
 import { ProjectCard } from "@/components/app/projects/project-card";
 import { DashboardSkeleton } from "@/components/app/projects/dashboard-skeleton";
+import { CreateProjectDialog } from "@/components/app/projects/create-project-dialog";
 
 export default function DashboardPage() {
   const projects = useQuery(api.projects.listByOrg);
 
   return (
     <div>
-      <h1 className="text-2xl font-bold tracking-tight">Proyectos</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">Proyectos</h1>
+        <CreateProjectDialog />
+      </div>
 
       <div className="mt-6">
         {projects === undefined ? (
@@ -26,12 +29,6 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                 Crea tu primer proyecto para empezar a definir la estructura
                 de tu producto.
-              </p>
-              <Button className="mt-6" disabled>
-                Crear proyecto
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2">
-                Disponible en Sprint Core
               </p>
             </CardContent>
           </Card>

@@ -20,6 +20,9 @@ import {
   Sun,
   Moon,
   Monitor,
+  Eye,
+  Layers,
+  Settings,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,6 +31,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+
+const projectSubItems = [
+  { label: "Overview", suffix: "", icon: Eye },
+  { label: "Capabilities", suffix: "?tab=capabilities", icon: Layers },
+  { label: "Settings", suffix: "?tab=settings", icon: Settings },
+] as const;
 
 export function Sidebar() {
   const { collapsed, toggle } = useSidebar();
@@ -79,7 +88,11 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto p-2">
         <Link
           href="/dashboard"
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+            pathname === "/dashboard"
+              ? "bg-accent text-accent-foreground font-medium"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          }`}
         >
           <LayoutDashboard className="h-4 w-4 shrink-0" />
           {!collapsed && <span>Dashboard</span>}
@@ -105,18 +118,37 @@ export function Sidebar() {
                   const href = `/projects/${p.slug}`;
                   const isActive = pathname === href || pathname.startsWith(`${href}/`);
                   return (
-                    <Link
-                      key={p._id}
-                      href={href}
-                      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
-                        isActive
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      }`}
-                    >
-                      <FolderKanban className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{p.name}</span>
-                    </Link>
+                    <div key={p._id}>
+                      <Link
+                        href={href}
+                        className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                          isActive
+                            ? "bg-accent text-accent-foreground font-medium"
+                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        }`}
+                      >
+                        <FolderKanban className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{p.name}</span>
+                      </Link>
+                      {/* Sub-items for active project */}
+                      {isActive && (
+                        <div className="ml-5 mt-0.5 space-y-0.5 border-l pl-2">
+                          {projectSubItems.map((sub) => {
+                            const subHref = `${href}${sub.suffix}`;
+                            return (
+                              <Link
+                                key={sub.label}
+                                href={subHref}
+                                className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                              >
+                                <sub.icon className="h-3 w-3 shrink-0" />
+                                <span>{sub.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>

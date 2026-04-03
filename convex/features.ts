@@ -282,6 +282,18 @@ export const getDetailedInternal = internalQuery({
   },
 });
 
+export const get = query({
+  args: { featureId: v.id("features") },
+  handler: async (ctx, args) => {
+    const { orgId } = await getAuthUser(ctx);
+    const feature = await ctx.db.get(args.featureId);
+    if (!feature || feature.orgId !== orgId) {
+      return null;
+    }
+    return feature;
+  },
+});
+
 export const listByCapability = query({
   args: { capabilityId: v.id("capabilities") },
   handler: async (ctx, args) => {
